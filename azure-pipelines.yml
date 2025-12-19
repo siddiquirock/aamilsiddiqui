@@ -1,0 +1,116 @@
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  terraformVersion: '1.6.6'
+
+stages:
+# =====================================================
+# PR VALIDATION STAGE
+# =====================================================
+- stage: PR_Validation
+  displayName: PR Validation
+  jobs:
+
+  # ---------- Terraform Plan ----------
+  - job: Terraform_Plan
+    displayName: Terraform Plan
+    pool: Aamilsiddiqui
+    steps:
+    - task: TerraformInstaller@1
+      displayName: Install Terraform
+      inputs:
+        terraformVersion: $(terraformVersion)
+
+    - task: TerraformTask@5
+      displayName: Terraform Init
+      inputs:
+        provider: azurerm
+        command: init
+        workingDirectory: '$(System.DefaultWorkingDirectory)/Assignment/Parentmodule'
+        backendServiceArm: S1
+        backendAzureRmOverrideSubscriptionID: '987e5914-628e-4e9a-8c8f-d7fa87735002'
+        backendAzureRmResourceGroupName: rgeri
+        backendAzureRmStorageAccountName: rgeri
+        backendAzureRmContainerName: newcon
+        backendAzureRmKey: '123456.tfstate'
+        commandOptions: '-migrate-state -input=false -lock-timeout=10s'
+
+    - task: TerraformTask@5
+      displayName: Terraform Plan
+      inputs:
+        provider: azurerm
+        command: plan
+        workingDirectory: '$(System.DefaultWorkingDirectory)/Assignment/Parentmodule'
+        environmentServiceNameAzureRM: S1
+
+  # ---------- Checkov Scan ----------
+  - job: Checkov_Scan
+    displayName: Checkov Scan
+    dependsOn: Terraform_Plan
+    pool: Aamilsiddiqui
+    steps:
+    - script: |
+        python --version
+        pip install --quiet checkov
+        checkov -d Assignment/Parentmodule --framework terraform --soft-fail
+      displayName: Run Checkov Scan
+
+  # ---------- Manual Approval ----------
+  - job: Manual_Approval
+    displayName: Manual Approval
+    dependsOn: Checkov_Scan
+    pool: server
+    steps:
+    - task: ManualValidation@0
+      inputs:
+        instructions: |
+          Terraform Plan and Checkov scan completed.
+          Please approve to apply infrastructure changes.
+
+# =====================================================
+# APPLY STAGE
+# =====================================================
+- stage: Deploy
+  displayName: Terraform Apply
+  dependsOn: PR_Validation
+  condition: succeeded()
+  jobs:
+
+  - job: Terraform_Apply
+    displayName: Terraform Apply
+    pool: Aamilsiddiqui
+    steps:
+    - task: TerraformInstaller@1
+      displayName: Install Terraform
+      inputs:
+        terraformVersion: $(terraformVersion)
+
+    - task: TerraformTask@5
+      displayName: Terraform Init (Apply Stage)
+      inputs:
+        provider: azurerm
+        command: init
+        workingDirectory: '$(System.DefaultWorkingDirectory)/Assignment/Parentmodule'
+        backendServiceArm: S1
+        backendAzureRmOverrideSubscriptionID: '987e5914-628e-4e9a-8c8f-d7fa87735002'
+        backendAzureRmResourceGroupName: rgeri
+        backendAzureRmStorageAccountName: rgeri
+        backendAzureRmContainerName: newcon
+        backendAzureRmKey: '123456.tfstate'
+        commandOptions: '-input=false -lock-timeout=10s'
+
+    - task: TerraformTask@5
+      displayName: Terraform Apply
+      inputs:
+        provider: azurerm
+        command: apply
+        workingDirectory: '$(System.DefaultWorkingDirectory)/Assignment/Parentmodule'
+        environmentServiceNameAzureRM: S1
+        commandOptions: '-auto-approve'
+
+
