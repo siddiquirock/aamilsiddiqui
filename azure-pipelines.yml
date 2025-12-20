@@ -9,9 +9,7 @@ variables:
   terraformVersion: '1.6.6'
 
 stages:
-# =====================================================
-# PR VALIDATION STAGE
-# =====================================================
+
 - stage: PR_Validation
   displayName: PR Validation
   jobs:
@@ -48,7 +46,7 @@ stages:
         workingDirectory: '$(System.DefaultWorkingDirectory)/Assignment/Parentmodule'
         environmentServiceNameAzureRM: S1
 
-  # ---------- Checkov Scan ----------
+
   - job: Checkov_Scan
     displayName: Checkov Scan
     dependsOn: Terraform_Plan
@@ -60,7 +58,7 @@ stages:
         checkov -d Assignment/Parentmodule --framework terraform --soft-fail
       displayName: Run Checkov Scan
 
-  # ---------- Manual Approval ----------
+
   - job: Manual_Approval
     displayName: Manual Approval
     dependsOn: Checkov_Scan
@@ -72,9 +70,7 @@ stages:
           Terraform Plan and Checkov scan completed.
           Please approve to apply infrastructure changes.
 
-# =====================================================
-# APPLY STAGE
-# =====================================================
+
 - stage: Deploy
   displayName: Terraform Apply
   dependsOn: PR_Validation
